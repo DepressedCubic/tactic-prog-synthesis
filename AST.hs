@@ -2,22 +2,25 @@ module AST where
 
 -- Type Annotations
 
-data PrimitiveType = INT | STRING | BOOL
-  deriving (Show)
+data PrimitiveType = INT | BOOL
+  deriving (Show, Eq)
 
 data Type = Func Type Type | List Type | PrimType PrimitiveType
-  deriving (Show)
+  deriving (Show, Eq)
 
 data TypeAnnotation = TypeAnnotation String Type
   deriving (Show)
 
 -- Values
 
-data PrimitiveValue = Int Integer | Bool Bool
-  deriving (Show)
 
-data Value = Value PrimitiveValue
-
+data Value = 
+  Int Integer | 
+  Bool Bool | 
+  Function (Value -> Value) | 
+  ListValue [Value] | 
+  Recurse
+  
 -- Expressions
 
 data InbuiltBinary = ADD | SUB | MUL | DIV | AND | OR
@@ -28,8 +31,8 @@ data Expression =
   Var String |
   Ifte Expression Expression Expression |
   Lambda TypeAnnotation Expression |
-  Num Integer | Boolean Bool |
-  Binary InbuiltBinary Expression Expression
+  Num Integer | 
+  Boolean Bool
   deriving (Show)
 
 

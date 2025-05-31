@@ -1,4 +1,4 @@
--- module Parser where
+module Parsing where
 
 import System.Environment
 import Data.Maybe
@@ -32,6 +32,7 @@ parse_natural = do
   n <- many1 digit
   return (read n)
 
+{-
 parse_binary_op :: Parser InbuiltBinary
 parse_binary_op = do
   str <- many1 letter
@@ -43,7 +44,7 @@ parse_binary_op = do
     "and" -> return (AND)
     "or" -> return (OR)
     _ -> fail "expected binary operator"
-
+-}
 
 -- PrimitiveType parsing
 
@@ -51,11 +52,6 @@ p_int :: Parser Type
 p_int = do
   string ("Int")
   return (PrimType INT)
-
-p_str :: Parser Type
-p_str = do
-  string ("String")
-  return (PrimType STRING)
 
 p_bool :: Parser Type
 p_bool = do
@@ -65,7 +61,7 @@ p_bool = do
 -- Type parsing
 
 parse_prim_type :: Parser Type
-parse_prim_type = p_int <|> p_str <|> p_bool
+parse_prim_type = p_int <|> p_bool
 
 parse_list_type :: Parser Type
 parse_list_type = do
@@ -164,12 +160,14 @@ parse_variable = do
   spaces
   return (Var name)
 
+{-
 parse_binary :: Parser Expression
 parse_binary = do
   op <- parse_binary_op
   e1 <- parse_expression
   e2 <- parse_expression
   return (Binary op e1 e2)
+-}
 
 app_builder :: [Expression] -> Maybe Expression
 app_builder exps = 
