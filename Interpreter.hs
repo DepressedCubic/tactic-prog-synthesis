@@ -2,133 +2,38 @@ module Interpreter where
 
 import Data.Maybe
 import AST
-
-type TypeEnvironment = [(String, Type)]
-
-type ValueEnvironment = [(String, Value)]
-
-nil_val :: Value
-nil_val = ListValue []
-
-cons_val :: Value
-cons_val =
-  Function (\v -> Function (\(ListValue l) -> (ListValue (v:l))))
-
-head_val :: Value
-head_val =
-  Function (\(ListValue l) -> (head l))
-
-tail_val :: Value
-tail_val =
-  Function (\(ListValue l) -> ListValue (tail l))
-
-isnil_val :: Value
-isnil_val =
-  Function (\(ListValue l) -> (Bool (null l)))
-
-leq_val :: Value
-leq_val =
-  Function (\(Int v) -> (Function (\(Int w) -> Bool (v <= w))))
-
-and_val :: Value
-and_val =
-  Function (\(Bool b1) -> (Function (\(Bool b2) -> Bool (b1 && b2))))
-
-or_val :: Value
-or_val =
-  Function (\(Bool b1) -> (Function (\(Bool b2) -> Bool (b1 || b2))))
-
-not_val :: Value
-not_val =
-  Function (\(Bool b) -> (Bool (not b)))
-
-add_val :: Value
-add_val =
-  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 + x2))))
-
-sub_val :: Value
-sub_val =
-  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 - x2))))
-
-mul_val :: Value
-mul_val =
-  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 * x2))))
-
-div_val :: Value
-div_val =
-  Function (\(Int x1) -> (Function (\(Int x2) -> Int (div x1 x2))))
-
-zero_val :: Value
-zero_val =
-  Function (\(Int x) -> (Bool (x == 0)))
-
-initial_types :: TypeEnvironment
-initial_types =
-  [
-    ("nil", List T),
-    ("cons", Func T (Func (List T) (List T))),
-    ("head", Func (List T) T),
-    ("tail", Func (List T) (List T)),
-    ("isnil", Func (List T) (PrimType BOOL)),
-    ("leq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
-    ("and", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
-    ("or", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
-    ("not", Func (PrimType BOOL) (PrimType BOOL)),
-    ("add", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
-    ("sub", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
-    ("mul", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
-    ("div", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
-    ("zero", Func (PrimType INT) (PrimType BOOL))
-  ]
-
-initial_environment :: ValueEnvironment
-initial_environment =
-  [
-    ("nil", nil_val),
-    ("cons", cons_val),
-    ("head", head_val),
-    ("tail", tail_val),
-    ("isnil", isnil_val),
-    ("leq", leq_val),
-    ("and", and_val),
-    ("or", or_val),
-    ("not", not_val),
-    ("add", add_val),
-    ("sub", sub_val),
-    ("mul", mul_val),
-    ("div", div_val),
-    ("zero", zero_val)
-  ]
+import Environment
 
 -- TYPING
 
--- doesn't contain any Ts.
+-- is_instantiated t holds whenever t has no type placeholders.
 is_instantiated :: Type -> Bool
 is_instantiated T = False
 is_instantiated (PrimType t) = True
 is_instantiated (List t) = is_instantiated t
 is_instantiated (Func t1 t2) = (is_instantiated t1) && (is_instantiated t2)
+is_instantiated (Prod t1 t2) = (is_instantiated t1) && (is_instantiated t2)
+is_instantiated Any = False
 
--- instantiate_type t1 t2 will replace all T's
--- in t1 with t2.
+{-
+instantiate_type t1 t2 will replace all placeholder types T
+in t1 with t2.
+-}
 instantiate_type :: Type -> Type -> Type
+instantiate_type Any t2 = Any
 instantiate_type T t2 = t2
 instantiate_type (PrimType t) _ = (PrimType t)
 instantiate_type (List t) t2 = (List (instantiate_type t t2))
 instantiate_type (Func t0 t1) t2 =
   (Func (instantiate_type t0 t2) (instantiate_type t1 t2))
+instantiate_type (Prod t0 t1) t2 =
+  (Prod (instantiate_type t0 t2) (instantiate_type t1 t2))
 
 data TypeChoice = Instantiated | Subs Type | None
   deriving (Eq, Show)
 
--- given any type t and an instantiated type t',
--- if they match, determines the type to substitute
--- T with to instantiate t; if t was already instantiated,
--- returns Instantiated; if they don't match or t' not instantiated,
--- None.
-match_types :: Type -> Type -> TypeChoice
-match_types _ T = None
-match_types (Func t0 t1) (Func u0 u1) =
+match_pairs :: (Type, Type) -> (Type, Type) -> TypeChoice
+match_pairs (t0, t1) (u0, u1) =
   let
     c0 = match_types t0 u0
     c1 = match_types t1 u1
@@ -142,6 +47,23 @@ match_types (Func t0 t1) (Func u0 u1) =
         if (m0 == m1)
           then (Subs m0)
           else None
+
+{-
+match_types t t':
+If the two types don't match or t' isn't instantiated, returns None
+(thus, it is expected that the second argument is always instantiated).
+If they match and t was already instantiated, returns Instantiated.
+Otherwise (i.e. they match but t wasn't instantiated), returns
+(Subs t1), where t1 is the type to substitute the placeholder type in t
+to make instantiate it and make it match t'.
+-}
+match_types :: Type -> Type -> TypeChoice
+match_types _ T = None
+match_types Any _ = Instantiated
+match_types (Prod t0 t1) (Prod u0 u1) =
+  match_pairs (t0, t1) (u0, u1)
+match_types (Func t0 t1) (Func u0 u1) =
+  match_pairs (t0, t1) (u0, u1)
 match_types (Func t0 t1) _ = None
 match_types (List t) (List u) =
   match_types t u
@@ -151,8 +73,12 @@ match_types (PrimType t) (PrimType u) =
 match_types (PrimType t) _ = None
 match_types T t0 = (Subs t0)
 
--- For some expression, returns either Just K if it's
--- well-typed and of type K, or Nothing.
+{-
+get_type exp env:
+If exp is well-typed and of type U in type environment env,
+returns Just U.
+Otherwise, returns Nothing.
+-}
 get_type :: Expression -> TypeEnvironment -> Maybe Type
 get_type (App e1 e2) env = do
   t1 <- get_type e1 env
@@ -180,7 +106,11 @@ get_type (App e1 e2) env = do
             None -> Nothing
             _ -> return (s)
         _ -> Nothing
-    _ -> Nothing -- i.e. to apply, either func or input must have instantiated type.
+    _ -> Nothing 
+{-
+This last case implies that for f x to be considered well-typed here,
+either f or x must have fully instantiated type.
+-}
 get_type (Var s) env = lookup s env
 get_type (Ifte c e1 e2) env = do
   t <- get_type c env
@@ -202,14 +132,26 @@ get_type (Ifte c e1 e2) env = do
             case (match_types t2 t1) of
               None -> Nothing
               _ -> return (t1)
-          _ -> Nothing -- at least one of the options must have inst. type.
+          _ -> Nothing
+{-
+This last case implies that for 'if (c) then (e1) else (e2)' to be
+considered well-typed here, either e1 or e2 must have fully instantiated type.
+-}
     else Nothing
 get_type (Lambda (TypeAnnotation name t1) exp) env = do
   t2 <- get_type exp ((name, t1) : env)
   return (Func t1 t2)
 get_type (Num n) env = Just (PrimType INT)
 get_type (Boolean b) env = Just (PrimType BOOL)
+get_type (Pair a b) env = do
+  t1 <- get_type a env
+  t2 <- get_type b env
+  return (Prod t1 t2)
 
+{-
+correct_type env tp:
+Holds exactly when the top-level 'tp' is well-typed in type environment 'env'.
+-}
 correct_type :: TypeEnvironment -> TopLevel -> Bool
 correct_type env (Let (TypeAnnotation _ t) exp) =
   case (get_type exp env) of
@@ -220,7 +162,12 @@ correct_type env (LetRec (TypeAnnotation name t) exp) =
     Just u -> (t == u)
     Nothing -> False
 
--- WARNING: Only use if correct_type has been run first!
+{-
+update_types env tp:
+Returns an updated version of the type environment 'env' in light
+of the top-level function declaration 'tp'. Doesn't perform any type
+checking, so it must only be run if correct_type has already been run.
+-}
 update_types :: TypeEnvironment -> TopLevel -> TypeEnvironment
 update_types env tp =
   case tp of
@@ -228,6 +175,13 @@ update_types env tp =
     LetRec (TypeAnnotation name t) _ -> (name, t) : env
 
 -- values can be Haskell ints, bools, lists, or functions!
+{-
+eval exp env tp:
+Returns the interpreted Value of 'exp', in light of the current
+value environment 'env', and the possible top-level declaration
+that 'exp' belongs to (this is important when evaluating
+recursive functions).
+-}
 eval :: Expression -> ValueEnvironment -> TopLevel -> Value
 eval (App e1 e2) env tp =
   let
@@ -238,7 +192,8 @@ eval (App e1 e2) env tp =
       Recurse -> case tp of
         LetRec _ (Lambda (TypeAnnotation name t) low_exp) ->
           eval low_exp ((name, v2) : env) tp
-      Function f -> f v2 -- i.e. for now, a recursive call can't be an arg
+      Function f -> f v2 
+-- This implies that you can't apply a function to a recursive call.
 eval (Var s) env tp = fromJust (lookup s env)
 eval (Ifte cond e1 e2) env tp =
   let
@@ -250,8 +205,14 @@ eval (Ifte cond e1 e2) env tp =
 eval (Lambda (TypeAnnotation name t) e) env tp =
   Function (\x -> eval e ((name, x) : env) tp)
 eval (Num n) env tp = Int n
-eval (Boolean b) env tp = Bool b 
+eval (Boolean b) env tp = Bool b
+eval (Pair a b) env tp = PairValue (eval a env tp, eval b env tp)
 
+{-
+update_environment env tp:
+Returns the updated version of the value environment 'env', after
+having interpreted top-level 'tp'.
+-}
 update_environment :: ValueEnvironment -> TopLevel -> ValueEnvironment
 update_environment env tp =
   case tp of

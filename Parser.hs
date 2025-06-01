@@ -7,7 +7,10 @@ import Text.Parsec.String (Parser)
 import Control.Applicative (many)
 import AST
 
--- note: do not forget to use "\\" when debugging in terminal!
+{-
+NOTE: When debugging these parsers in the terminal, make sure to
+use \\ for \ (in lambda expressions).
+-}
 
 parens :: Parser a -> Parser a
 parens p = do
@@ -18,7 +21,6 @@ parens p = do
   char ')'
   spaces
   return (t)
-
 
 parse_name :: Parser String
 parse_name = do
@@ -32,21 +34,7 @@ parse_natural = do
   n <- many1 digit
   return (read n)
 
-{-
-parse_binary_op :: Parser InbuiltBinary
-parse_binary_op = do
-  str <- many1 letter
-  case str of
-    "add" -> return (ADD)
-    "mul" -> return (MUL)
-    "sub" -> return (SUB)
-    "div" -> return (DIV)
-    "and" -> return (AND)
-    "or" -> return (OR)
-    _ -> fail "expected binary operator"
--}
-
--- PrimitiveType parsing
+-- Parsers for primitive types (ints and bools)
 
 p_int :: Parser Type
 p_int = do
@@ -58,7 +46,7 @@ p_bool = do
   string ("Bool")
   return (PrimType BOOL)
 
--- Type parsing
+-- Parsers for general types (and type annotations)
 
 parse_prim_type :: Parser Type
 parse_prim_type = p_int <|> p_bool
@@ -74,7 +62,7 @@ parse_list_type = do
 
 parse_type :: Parser Type
 parse_type = do
-  t1 <- parse_prim_type <|> parse_list_type <|> 
+  t1 <- parse_pair_type <|> parse_prim_type <|> parse_list_type <|> 
         between (char '(') (char ')') parse_type
   spaces
   is_func <- optionMaybe (string "->")
@@ -99,7 +87,33 @@ parse_type_annotation = do
   char ')'
   return (TypeAnnotation n t)
 
--- Expression parsing
+parse_pair_type :: Parser Type
+parse_pair_type = do
+  char '<'
+  spaces
+  u <- parse_type
+  spaces
+  char ','
+  spaces
+  v <- parse_type
+  spaces
+  char '>'
+  return (Prod u v)
+
+-- Parsers for specific types of expressions
+
+parse_pair :: Parser Expression
+parse_pair = do
+  char '<'
+  u <- parse_expression
+  spaces
+  char ','
+  spaces
+  v <- parse_expression
+  spaces
+  char '>'
+  return (Pair u v)
+
 
 parse_lambda :: Parser Expression
 parse_lambda = do
@@ -146,8 +160,6 @@ parse_bool = do
   string "True"
   return (Boolean True)
 
-
-
 parse_prim_value :: Parser Expression
 parse_prim_value = do
   p <- parse_integer <|> parse_bool
@@ -161,14 +173,10 @@ parse_variable = do
   return (Var name)
 
 {-
-parse_binary :: Parser Expression
-parse_binary = do
-  op <- parse_binary_op
-  e1 <- parse_expression
-  e2 <- parse_expression
-  return (Binary op e1 e2)
+app_builder takes a list of expressions [e1, e2, e3, ...]
+and turns them into a single expression with applications:
+(App (App (App ... e3) e2) e1)
 -}
-
 app_builder :: [Expression] -> Maybe Expression
 app_builder exps = 
   case exps of
@@ -176,9 +184,10 @@ app_builder exps =
       [x] -> Just x
       (x : xs) -> Just (App (fromJust (app_builder xs)) x)
 
-
+-- Parsers for general expressions and top-levels
 parse_single_expression :: Parser Expression
-parse_single_expression = 
+parse_single_expression =
+        try parse_pair <|>
         try parse_lambda <|> 
         try parse_prim_value <|> 
         try parse_ifte <|> 

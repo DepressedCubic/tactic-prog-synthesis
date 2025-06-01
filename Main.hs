@@ -6,6 +6,7 @@ import System.IO
 import AST
 import Interpreter
 import Parser
+import Environment
 
 data LoopState = TYPE_CHECK [TopLevel] [TopLevel] TypeEnvironment | 
              INTERPRET [TopLevel] ValueEnvironment |
