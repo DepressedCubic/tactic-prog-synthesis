@@ -30,6 +30,38 @@ leq_val :: Value
 leq_val =
   Function (\(Int v) -> (Function (\(Int w) -> Bool (v <= w))))
 
+and_val :: Value
+and_val =
+  Function (\(Bool b1) -> (Function (\(Bool b2) -> Bool (b1 && b2))))
+
+or_val :: Value
+or_val =
+  Function (\(Bool b1) -> (Function (\(Bool b2) -> Bool (b1 || b2))))
+
+not_val :: Value
+not_val =
+  Function (\(Bool b) -> (Bool (not b)))
+
+add_val :: Value
+add_val =
+  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 + x2))))
+
+sub_val :: Value
+sub_val =
+  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 - x2))))
+
+mul_val :: Value
+mul_val =
+  Function (\(Int x1) -> (Function (\(Int x2) -> Int (x1 * x2))))
+
+div_val :: Value
+div_val =
+  Function (\(Int x1) -> (Function (\(Int x2) -> Int (div x1 x2))))
+
+zero_val :: Value
+zero_val =
+  Function (\(Int x) -> (Bool (x == 0)))
+
 initial_types :: TypeEnvironment
 initial_types =
   [
@@ -38,7 +70,15 @@ initial_types =
     ("head", Func (List T) T),
     ("tail", Func (List T) (List T)),
     ("isnil", Func (List T) (PrimType BOOL)),
-    ("leq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL)))
+    ("leq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
+    ("and", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
+    ("or", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
+    ("not", Func (PrimType BOOL) (PrimType BOOL)),
+    ("add", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
+    ("sub", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
+    ("mul", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
+    ("div", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
+    ("zero", Func (PrimType INT) (PrimType BOOL))
   ]
 
 initial_environment :: ValueEnvironment
@@ -49,7 +89,15 @@ initial_environment =
     ("head", head_val),
     ("tail", tail_val),
     ("isnil", isnil_val),
-    ("leq", leq_val)
+    ("leq", leq_val),
+    ("and", and_val),
+    ("or", or_val),
+    ("not", not_val),
+    ("add", add_val),
+    ("sub", sub_val),
+    ("mul", mul_val),
+    ("div", div_val),
+    ("zero", zero_val)
   ]
 
 -- TYPING
@@ -167,13 +215,17 @@ correct_type env (Let (TypeAnnotation _ t) exp) =
   case (get_type exp env) of
     Just u -> (t == u)
     Nothing -> False
-correct_type env (LetRec (TypeAnnotation _ t) exp) =
-  case (get_type exp env) of
+correct_type env (LetRec (TypeAnnotation name t) exp) =
+  case (get_type exp ((name, t) : env)) of
     Just u -> (t == u)
     Nothing -> False
 
 -- WARNING: Only use if correct_type has been run first!
-update_types :: TypeEnvironment
+update_types :: TypeEnvironment -> TopLevel -> TypeEnvironment
+update_types env tp =
+  case tp of
+    Let (TypeAnnotation name t) _ -> (name, t) : env
+    LetRec (TypeAnnotation name t) _ -> (name, t) : env
 
 -- values can be Haskell ints, bools, lists, or functions!
 eval :: Expression -> ValueEnvironment -> TopLevel -> Value
@@ -186,7 +238,7 @@ eval (App e1 e2) env tp =
       Recurse -> case tp of
         LetRec _ (Lambda (TypeAnnotation name t) low_exp) ->
           eval low_exp ((name, v2) : env) tp
-      Function f -> f v2
+      Function f -> f v2 -- i.e. for now, a recursive call can't be an arg
 eval (Var s) env tp = fromJust (lookup s env)
 eval (Ifte cond e1 e2) env tp =
   let

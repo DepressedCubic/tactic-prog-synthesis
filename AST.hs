@@ -37,7 +37,7 @@ data Expression =
 
 
 data TopLevel = 
-  Let TypeAnnotation Expression | LetRec TypeAnnotation Expression
+  Let TypeAnnotation Expression | LetRec TypeAnnotation Expression | TP
   deriving (Show)
 
 show_type :: Type -> String
