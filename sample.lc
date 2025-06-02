@@ -1,0 +1,46 @@
+let (inputA : [Int]) = cons 2 (cons 1 (cons 9 (cons 3 (cons 6 nil))))
+let (inputB : [Int]) = cons 3 (cons 1 (cons 4 (cons 1 (cons 5 nil))))
+
+letrec (insert : Int -> [Int] -> [Int]) = 
+\(x : Int) -> (
+	 \(ys : [Int]) -> (
+	 	if (isnil ys)
+	 	then (cons x nil)
+	 	else (
+	 		if (leq x (head ys))
+	 		then (cons x ys)
+	 		else (cons (head ys) (insert x (tail ys)))
+	 	)
+	 )
+)
+
+letrec (sort : [Int] -> [Int]) = 
+\(xs : [Int]) -> (
+	if (isnil xs)
+	then (nil)
+	else (insert (head xs) (sort (tail xs)))
+)
+
+
+letrec (factorial : Int -> Int) =
+\(n : Int) -> (
+	if (zero n)
+	then (1)
+	else (mul n (factorial (sub n 1)))
+)
+
+letrec (addList : [Int] -> [Int] -> [Int]) =
+\(xs : [Int]) -> (
+	\(ys : [Int]) -> (
+		if (or (isnil xs) (isnil ys))
+		then (nil)
+		else (cons (add (head xs) (head ys)) (addList (tail xs) (tail ys)))
+	)
+)
+
+let (addPair : <Int, Int> -> Int) =
+\(p : <Int, Int>) -> (
+	add (fst p) (snd p)
+)
+
+let (badType : [Bool]) = cons True (cons 2 nil)
