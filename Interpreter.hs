@@ -214,7 +214,16 @@ eval (App e1 e2) env tp =
         LetRec _ (Lambda (TypeAnnotation name t) low_exp) ->
           eval low_exp ((name, v2) : env) tp
       Function f -> f v2 
--- This implies that you can't apply a function to a recursive call.
+{-
+At the moment, it is only possible to evaluate recursively defined functions
+(and even here, we cannot apply functions to them inside their definition). 
+So for example:
+
+letrec (infiniteOnes : [Int]) =
+  cons 1 infiniteOnes
+
+is not allowed.
+-}
 eval (Var s) env tp = fromJust (lookup s env)
 eval (Ifte cond e1 e2) env tp =
   let

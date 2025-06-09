@@ -13,6 +13,16 @@ NOTE: When debugging these parsers in the terminal, make sure to
 use \\ for \ (in lambda expressions).
 -}
 
+keywords :: [String]
+keywords =
+  [
+    "if",
+    "then",
+    "else",
+    "let",
+    "letrec"
+  ]
+
 with_eof :: Parser a -> Parser a
 with_eof p = do
   t <- p
@@ -157,7 +167,9 @@ parse_prim_value = do
 parse_variable :: Parser Expression
 parse_variable = do
   name <- parse_name
-  return (Var name)
+  if (elem name keywords)
+    then fail $ "Syntax error: Expected variable but got keyword <" ++ name ++ ">"
+    else return (Var name)
 
 {-
 app_builder takes a list of expressions [e1, e2, e3, ...]
@@ -195,7 +207,7 @@ parse_top_level = do
   case keyword of
     "let" -> return (Let t e)
     "letrec" -> return (LetRec t e)
-    _ -> fail "expected top-level function definition"
+    _ -> fail "Syntax error: Expected top-level function definition"
 
 parse_code :: Parser [TopLevel]
 parse_code = many1 parse_top_level
