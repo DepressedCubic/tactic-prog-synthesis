@@ -2,6 +2,7 @@ module Parser where
 
 import System.Environment
 import Data.Maybe
+import Data.Functor
 import Text.Parsec
 import Text.Parsec.String (Parser)
 import Control.Applicative (many)
@@ -12,19 +13,37 @@ NOTE: When debugging these parsers in the terminal, make sure to
 use \\ for \ (in lambda expressions).
 -}
 
+with_eof :: Parser a -> Parser a
+with_eof p = do
+  t <- p
+  eof
+  return (t)
+
+chr :: Char -> Parser Char
+chr c = do
+  spaces
+  t <- char c
+  spaces
+  return (t)
+
+str :: String -> Parser String
+str s = do
+  spaces
+  t <- string s
+  spaces
+  return (t)
+
 parens :: Parser a -> Parser a
 parens p = do
-  char '('
-  spaces
+  chr '('
   t <- p
-  spaces
-  char ')'
-  spaces
+  chr ')'
   return (t)
 
 parse_name :: Parser String
 parse_name = do
   word <- many1 letter
+  spaces
   if (elem word ["let", "letrec"])
     then fail "used keyword in wrong place"
     else return (word)
@@ -32,19 +51,16 @@ parse_name = do
 parse_natural :: Parser Integer
 parse_natural = do
   n <- many1 digit
+  spaces
   return (read n)
 
 -- Parsers for primitive types (ints and bools)
 
 p_int :: Parser Type
-p_int = do
-  string ("Int")
-  return (PrimType INT)
+p_int = str "Int" $> PrimType INT
 
 p_bool :: Parser Type
-p_bool = do
-  string ("Bool")
-  return (PrimType BOOL)
+p_bool = str "Bool" $> PrimType BOOL
 
 -- Parsers for general types (and type annotations)
 
@@ -53,19 +69,16 @@ parse_prim_type = p_int <|> p_bool
 
 parse_list_type :: Parser Type
 parse_list_type = do
-  char '['
-  spaces
+  chr '['
   t <- parse_type
-  spaces
-  char ']'
+  chr ']'
   return (List t)
 
 parse_type :: Parser Type
 parse_type = do
   t1 <- parse_pair_type <|> parse_prim_type <|> parse_list_type <|> 
-        between (char '(') (char ')') parse_type
-  spaces
-  is_func <- optionMaybe (string "->")
+        between (chr '(') (chr ')') parse_type
+  is_func <- optionMaybe (str "->")
   case is_func of
     Nothing -> return (t1)
     Just x -> do
@@ -76,75 +89,55 @@ parse_type = do
 
 parse_type_annotation :: Parser TypeAnnotation
 parse_type_annotation = do
-  char '('
-  spaces
+  chr '('
   n <- parse_name
-  spaces
-  char ':'
-  spaces
+  chr ':'
   t <- parse_type
-  spaces
-  char ')'
+  chr ')'
   return (TypeAnnotation n t)
 
 parse_pair_type :: Parser Type
 parse_pair_type = do
-  char '<'
-  spaces
+  chr '<'
   u <- parse_type
-  spaces
-  char ','
-  spaces
+  chr ','
   v <- parse_type
-  spaces
-  char '>'
+  chr '>'
   return (Prod u v)
 
 -- Parsers for specific types of expressions
 
 parse_pair :: Parser Expression
 parse_pair = do
-  char '<'
+  chr '<'
   u <- parse_expression
-  spaces
-  char ','
-  spaces
+  chr ','
   v <- parse_expression
-  spaces
-  char '>'
+  chr '>'
   return (Pair u v)
 
 
 parse_lambda :: Parser Expression
 parse_lambda = do
-  string "\\"
+  str "\\"
   t <- parse_type_annotation
-  spaces
-  string "->"
-  spaces
+  str "->"
   exp <- parse_expression
-  spaces
   return (Lambda t exp)
 
 parse_ifte :: Parser Expression
 parse_ifte = do
-  string "if"
-  spaces
+  str "if"
   cond <- parens parse_expression
-  spaces
-  string "then"
-  spaces
+  str "then"
   if_true <- parens parse_expression
-  spaces
-  string "else"
-  spaces
+  str "else"
   if_false <- parens parse_expression
-  spaces
   return (Ifte cond if_true if_false)
 
 parse_integer :: Parser Expression
 parse_integer = (do
-  char '-'
+  chr '-'
   n <- parse_natural
   return (Num (-n)))
   <|> (do
@@ -153,23 +146,17 @@ parse_integer = (do
   )
 
 parse_bool :: Parser Expression
-parse_bool = do
-  string "False"
-  return (Boolean False)
- <|> do
-  string "True"
-  return (Boolean True)
+parse_bool = (str "False" $> Boolean False) 
+         <|> (str "True" $> Boolean True)
 
 parse_prim_value :: Parser Expression
 parse_prim_value = do
   p <- parse_integer <|> parse_bool
-  spaces
   return (p)
 
 parse_variable :: Parser Expression
 parse_variable = do
   name <- parse_name
-  spaces
   return (Var name)
 
 {-
@@ -177,12 +164,11 @@ app_builder takes a list of expressions [e1, e2, e3, ...]
 and turns them into a single expression with applications:
 (App (App (App ... e3) e2) e1)
 -}
-app_builder :: [Expression] -> Maybe Expression
+app_builder :: [Expression] -> Expression
 app_builder exps = 
   case exps of
-      [] -> Nothing
-      [x] -> Just x
-      (x : xs) -> Just (App (fromJust (app_builder xs)) x)
+      [x] -> x
+      (x : xs) -> (App (app_builder xs) x)
 
 -- Parsers for general expressions and top-levels
 parse_single_expression :: Parser Expression
@@ -198,16 +184,13 @@ parse_expression = do
   e_list <- many1 (try (parens parse_expression) <|> parse_single_expression)
   if (null e_list)
     then fail "no expressions found"
-    else return (fromJust (app_builder (reverse e_list)))
+    else return (app_builder (reverse e_list))
 
 parse_top_level :: Parser TopLevel
 parse_top_level = do
   keyword <- many1 letter
-  spaces
   t <- parse_type_annotation
-  spaces
-  char '='
-  spaces
+  chr '='
   e <- parse_expression
   case keyword of
     "let" -> return (Let t e)

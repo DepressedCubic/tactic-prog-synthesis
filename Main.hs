@@ -26,16 +26,20 @@ loop (TYPE_CHECK to_check checked types) = do
       putStrLn "Interpreting..."
       loop (INTERPRET (reverse checked) initial_environment)
     (tp : tps) -> do
-      if (correct_type types tp)
-        then loop (TYPE_CHECK tps (tp : checked) (update_types types tp))
-        else
+      case (type_check_error types tp) of
+        Nothing -> loop (TYPE_CHECK tps (tp : checked) (update_types types tp))
+        Just error ->
           case tp of
             LetRec (TypeAnnotation name _) _ -> do
-              putStrLn ("Error when type checking <" ++ name ++ ">!")
+              putStrLn ("Error when type checking <" ++ name ++ ">:")
+              putStrLn error
+              putStrLn ""
               putStrLn "Interpreting type checked code..."
               loop (INTERPRET (reverse checked) initial_environment)
             Let (TypeAnnotation name _) _ -> do
-              putStrLn ("Error when type checking <" ++ name ++ ">!")
+              putStrLn ("Error when type checking <" ++ name ++ ">:")
+              putStrLn error
+              putStrLn ""
               putStrLn "Interpreting type checked code..."
               loop (INTERPRET (reverse checked) initial_environment)
 
@@ -48,28 +52,28 @@ loop (INTERPRET to_interpret env) = do
 
 loop (REPL env) = do
   input <- prompt "> "
-  let
-    keyword = head $ words input
-    exp_str = unwords $ tail $ words input
-  case keyword of
-    "exit" -> return ()
-    "eval" -> do
-      case (parse parse_expression "" exp_str) of
-        Left err -> do
-          print err
-          loop (REPL env)
-        Right exp -> do
-          putStrLn $ show_value $ (eval exp env TP)
-          loop (REPL env)
-    _ -> do
-      putStrLn "Wrong keyword. Try again!"
-      loop (REPL env)
+  if (take 4 input == "exit")
+    then return ()
+    else
+      let 
+        exp_str = unwords $ words input
+      in
+        case (parse (with_eof parse_expression) "" exp_str) of
+          Left err -> do
+            print err
+            loop (REPL env)
+          Right exp -> do
+            putStrLn $ show_value $ (eval exp env TP)
+            loop (REPL env)
 
 main :: IO ()
 main = do
   args <- getArgs
-  source <- readFile $ head args
-  case (parse parse_code "" (unwords $ words source)) of
-    Left err -> print err
-    Right code ->
-      loop (TYPE_CHECK code [] initial_types)
+  if (null args)
+    then putStrLn "Usage: ./Main <filename>"
+    else do
+      source <- readFile $ head args
+      case (parse parse_code "" (unwords $ words source)) of
+        Left err -> print err
+        Right code ->
+          loop (TYPE_CHECK code [] initial_types)

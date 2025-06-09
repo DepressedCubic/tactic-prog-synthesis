@@ -2,6 +2,7 @@ module Interpreter where
 
 import Data.Maybe
 import AST
+import ErrorMessages
 import Environment
 
 -- TYPING
@@ -76,10 +77,11 @@ match_types T t0 = (Subs t0)
 {-
 get_type exp env:
 If exp is well-typed and of type U in type environment env,
-returns Just U.
-Otherwise, returns Nothing.
+returns Right U.
+Otherwise, returns Left <error message>.
 -}
-get_type :: Expression -> TypeEnvironment -> Maybe Type
+
+get_type :: Expression -> TypeEnvironment -> Either String Type
 get_type (App e1 e2) env = do
   t1 <- get_type e1 env
   t2 <- get_type e2 env
@@ -89,29 +91,36 @@ get_type (App e1 e2) env = do
   case (b1, b2) of
     (True, True) ->
       case t1 of
-        Func r s -> if (r == t2) then return (s) else Nothing
-        _ -> Nothing
+        Func r s -> 
+          if (r == t2) 
+            then return (s) 
+            else
+              Left (arg_type_mismatch (show_type r) (show_type t2))
+        _ -> Left (nonfunction_application (show_type t1))
     (False, True) ->
       case t1 of
         Func r s ->
           case (match_types r t2) of
             Instantiated -> return (s)
             Subs t -> return (instantiate_type s t)
-            None -> Nothing
-        _ -> Nothing
+            None -> Left (arg_type_mismatch (show_type r) (show_type t2))
+        _ -> Left (nonfunction_application (show_type t1))
     (True, False) ->
       case t1 of
         Func r s ->
           case (match_types t2 r) of
-            None -> Nothing
+            None -> Left (arg_type_mismatch (show_type r) (show_type t2))
             _ -> return (s)
-        _ -> Nothing
-    _ -> Nothing 
+        _ -> Left (nonfunction_application (show_type t1))
+    _ -> Left (uninstantiated_app (show_type t1) (show_type t2))
 {-
 This last case implies that for f x to be considered well-typed here,
 either f or x must have fully instantiated type.
 -}
-get_type (Var s) env = lookup s env
+get_type (Var s) env = 
+  case (lookup s env) of
+    Just t -> Right t
+    Nothing -> Left (undeclared_var s)
 get_type (Ifte c e1 e2) env = do
   t <- get_type c env
   t1 <- get_type e1 env
@@ -123,45 +132,57 @@ get_type (Ifte c e1 e2) env = do
         b2 = is_instantiated t2
       in
         case (b1, b2) of
-          (True, True) -> if (t1 == t2) then return (t1) else Nothing
+          (True, True) -> 
+            if (t1 == t2) 
+              then return (t1) 
+              else Left (ifte_type_mismatch (show_type t1) (show_type t2))
           (False, True) ->
             case (match_types t1 t2) of
-              None -> Nothing
+              None -> Left (ifte_type_mismatch (show_type t1) (show_type t2))
               _ -> return (t2)
           (True, False) ->
             case (match_types t2 t1) of
-              None -> Nothing
+              None -> Left (ifte_type_mismatch (show_type t1) (show_type t2))
               _ -> return (t1)
-          _ -> Nothing
+          _ -> Left (uninstantiated_ifte (show_type t1) (show_type t2))
 {-
 This last case implies that for 'if (c) then (e1) else (e2)' to be
 considered well-typed here, either e1 or e2 must have fully instantiated type.
 -}
-    else Nothing
+    else 
+      Left (nonbool_cond $ show_type t)
 get_type (Lambda (TypeAnnotation name t1) exp) env = do
   t2 <- get_type exp ((name, t1) : env)
   return (Func t1 t2)
-get_type (Num n) env = Just (PrimType INT)
-get_type (Boolean b) env = Just (PrimType BOOL)
+get_type (Num n) env = Right (PrimType INT)
+get_type (Boolean b) env = Right (PrimType BOOL)
 get_type (Pair a b) env = do
   t1 <- get_type a env
   t2 <- get_type b env
   return (Prod t1 t2)
 
-{-
-correct_type env tp:
-Holds exactly when the top-level 'tp' is well-typed in type environment 'env'.
--}
-correct_type :: TypeEnvironment -> TopLevel -> Bool
-correct_type env (Let (TypeAnnotation _ t) exp) =
-  case (get_type exp env) of
-    Just u -> (t == u)
-    Nothing -> False
-correct_type env (LetRec (TypeAnnotation name t) exp) =
-  case (get_type exp ((name, t) : env)) of
-    Just u -> (t == u)
-    Nothing -> False
 
+{-
+type_check_error env tp:
+Nothing if there was no error when type-checking 'tp' in type environment 'env',
+Just <error message> otherwise.
+-}
+type_check_error :: TypeEnvironment -> TopLevel -> Maybe String
+type_check_error env (Let (TypeAnnotation _ t) exp) =
+  case (get_type exp env) of
+    Right u -> 
+      if (t == u) 
+        then Nothing 
+        else Just (type_annotation_mismatch (show_type t) (show_type u))
+    Left error -> Just error
+type_check_error env (LetRec (TypeAnnotation name t) exp) =
+  case (get_type exp ((name, t) : env)) of
+    Right u -> 
+      if (t == u) 
+        then Nothing 
+        else Just (type_annotation_mismatch (show_type t) (show_type u))
+    Left error -> Just error
+  
 {-
 update_types env tp:
 Returns an updated version of the type environment 'env' in light
