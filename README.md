@@ -42,6 +42,8 @@ let (var : type) = ... expression ...
 ```
 letrec (var : type) = ... expression using var ...
 ```
+- It is important to note that right now, the only type of recursion is that for recursively defined functions; and even there, one shouldn't apply a function to them
+in their recursive definition (so for example, ```cons f nil``` cannot appear in the recursive definition of ```f```).
 
 ### Expressions
 - Integers are represented by their decimal expansions, and Booleans by ```True``` and ```False```.
