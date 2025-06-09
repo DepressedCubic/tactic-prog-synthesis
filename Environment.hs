@@ -35,6 +35,10 @@ leq_val :: Value
 leq_val =
   Function (\(Int v) -> (Function (\(Int w) -> Bool (v <= w))))
 
+eq_val :: Value
+eq_val =
+  Function (\(Int v) -> (Function (\(Int w) -> Bool (v == w))))
+
 and_val :: Value
 and_val =
   Function (\(Bool b1) -> (Function (\(Bool b2) -> Bool (b1 && b2))))
@@ -84,6 +88,7 @@ initial_types =
     ("tail", Func (List T) (List T)),
     ("isnil", Func (List T) (PrimType BOOL)),
     ("leq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
+    ("eq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
     ("and", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
     ("or", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
     ("not", Func (PrimType BOOL) (PrimType BOOL)),
@@ -105,6 +110,7 @@ initial_environment =
     ("tail", tail_val),
     ("isnil", isnil_val),
     ("leq", leq_val),
+    ("eq", eq_val),
     ("and", and_val),
     ("or", or_val),
     ("not", not_val),

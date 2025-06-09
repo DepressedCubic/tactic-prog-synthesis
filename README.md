@@ -58,26 +58,27 @@ where ```cond```, ```exp1```, and ```exp2``` are expressions. Currently, the par
 - A pair of expressions ```exp1``` and ```exp2``` is written as ```<exp1, exp2>```.
 
 ## Using the REPL
-- To evaluate an expression ```exp``` (that may include some of the interpreted variables), use ```eval exp```.
-- To exit the REPL, use ```exit```.
+- To evaluate an expression ```exp``` (that may include some of the interpreted variables), it suffices to write ```exp```.
+- To exit the REPL, use ```exit```. This is the only REPL keyword.
 
 ## Built-in Objects
 1. ```nil : [T]```: The empty list.
 2. ```cons : T -> [T] -> [T]```: Takes an element and a list and prepends the element to the list (necessary to build lists).
 3. ```head : [T] -> T```: Takes a list and returns its head, but be careful, doing so on the empty list may cause an error.
-4. ```tail : [T] -> [T]```: Takes a list and returns its head.
+4. ```tail : [T] -> [T]```: Takes a list and returns its tail.
 5. ```isnil : [T] -> Bool```: Takes a list and evaluates to ```True``` exactly if the list is empty.
 6. ```leq : Int -> Int -> Bool```: Takes in two integers and evaluates to ```True``` if the first is less than or equal to the second.
-7. ```and : Bool -> Bool -> Bool```: Logical AND.
-8. ```or : Bool -> Bool -> Bool```: Logical OR.
-9. ```not : Bool -> Bool```: Logical NOT.
-10. ```add : Int -> Int -> Int```: Integer addition.
-11. ```sub : Int -> Int -> Int```: Integer subtraction.
-12. ```mul : Int -> Int -> Int```: Integer multiplication.
-13. ```div : Int -> Int -> Int```: Integer division.
-14. ```zero : Int -> Bool```: Takes in an integer and return ```True``` exactly if it's zero.
-15. ```fst : <T, _> -> T```: Takes in a pair and returns the first component.
-16. ```snd : <_, T> -> T```: Takes in a pair and returns the second component.
+7. ```eq : Int -> Int -> Bool```: Takes in two integers and evaluates to ```True``` if they are equal.
+8. ```and : Bool -> Bool -> Bool```: Logical AND.
+9. ```or : Bool -> Bool -> Bool```: Logical OR.
+10. ```not : Bool -> Bool```: Logical NOT.
+11. ```add : Int -> Int -> Int```: Integer addition.
+12. ```sub : Int -> Int -> Int```: Integer subtraction.
+13. ```mul : Int -> Int -> Int```: Integer multiplication.
+14. ```div : Int -> Int -> Int```: Integer division.
+15. ```zero : Int -> Bool```: Takes in an integer and return ```True``` exactly if it's zero.
+16. ```fst : <T, _> -> T```: Takes in a pair and returns the first component.
+17. ```snd : <_, T> -> T```: Takes in a pair and returns the second component.
 
 ## Sample File
 A file with sample code is provided: ```sample.lc```. It includes an implementation of insertion sort, and some other functions (including a not well-typed one!)
