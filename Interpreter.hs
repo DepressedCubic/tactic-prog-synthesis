@@ -176,12 +176,16 @@ type_check_error env (Let (TypeAnnotation _ t) exp) =
         else Just (type_annotation_mismatch (show_type t) (show_type u))
     Left error -> Just error
 type_check_error env (LetRec (TypeAnnotation name t) exp) =
-  case (get_type exp ((name, t) : env)) of
-    Right u -> 
-      if (t == u) 
-        then Nothing 
-        else Just (type_annotation_mismatch (show_type t) (show_type u))
-    Left error -> Just error
+  case t of
+    Func _ _ ->
+      case (get_type exp ((name, t) : env)) of
+        Right u -> 
+          if (t == u) 
+            then Nothing 
+            else Just (type_annotation_mismatch (show_type t) (show_type u))
+        Left error -> Just error
+    _ -> Just recursive_nonfunction
+
   
 {-
 update_types env tp:

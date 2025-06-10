@@ -52,3 +52,6 @@ type_annotation_mismatch annotation_type exp_type =
   "Mismatch between the type annotation " ++
   annotation_type ++ "and the actual type "
   ++ exp_type
+
+recursive_nonfunction :: String
+recursive_nonfunction = "Attempted to define non-function recursively"
