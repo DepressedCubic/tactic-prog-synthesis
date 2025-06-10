@@ -9,8 +9,8 @@ import Parser
 import Environment
 
 data LoopState = TYPE_CHECK [TopLevel] [TopLevel] TypeEnvironment | 
-             INTERPRET [TopLevel] ValueEnvironment |
-             REPL ValueEnvironment
+             INTERPRET [TopLevel] ValueEnvironment TypeEnvironment |
+             REPL ValueEnvironment TypeEnvironment
 
 prompt :: String -> IO String
 prompt text = do
@@ -24,7 +24,7 @@ loop (TYPE_CHECK to_check checked types) = do
     [] -> do
       putStrLn "Type checking complete!"
       putStrLn "Interpreting..."
-      loop (INTERPRET (reverse checked) initial_environment)
+      loop (INTERPRET (reverse checked) initial_environment types)
     (tp : tps) -> do
       case (type_check_error types tp) of
         Nothing -> loop (TYPE_CHECK tps (tp : checked) (update_types types tp))
@@ -35,22 +35,22 @@ loop (TYPE_CHECK to_check checked types) = do
               putStrLn error
               putStrLn ""
               putStrLn "Interpreting type checked code..."
-              loop (INTERPRET (reverse checked) initial_environment)
+              loop (INTERPRET (reverse checked) initial_environment types)
             Let (TypeAnnotation name _) _ -> do
               putStrLn ("Error when type checking <" ++ name ++ ">:")
               putStrLn error
               putStrLn ""
               putStrLn "Interpreting type checked code..."
-              loop (INTERPRET (reverse checked) initial_environment)
+              loop (INTERPRET (reverse checked) initial_environment types)
 
-loop (INTERPRET to_interpret env) = do
+loop (INTERPRET to_interpret env types) = do
   case to_interpret of
     [] -> do
       putStrLn "Interpreted!"
-      loop (REPL env)
-    (tp : tps) -> loop (INTERPRET tps (update_environment env tp))
+      loop (REPL env types)
+    (tp : tps) -> loop (INTERPRET tps (update_environment env tp) types)
 
-loop (REPL env) = do
+loop (REPL env types) = do
   input <- prompt "> "
   if (take 4 input == "exit")
     then return ()
@@ -59,12 +59,14 @@ loop (REPL env) = do
         exp_str = unwords $ words input
       in
         case (parse (with_eof parse_expression) "" exp_str) of
-          Left err -> do
-            print err
-            loop (REPL env)
+          Left parse_err -> do
+            print parse_err
+            loop (REPL env types)
           Right exp -> do
-            putStrLn $ show_value $ (eval exp env TP)
-            loop (REPL env)
+            case (get_type exp types) of
+              Right t -> putStrLn $ show_value $ (eval exp env TP)
+              Left type_err -> putStrLn type_err
+            loop (REPL env types)
 
 main :: IO ()
 main = do
