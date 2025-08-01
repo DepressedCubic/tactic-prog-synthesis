@@ -171,16 +171,6 @@ parse_variable = do
     then fail $ "Syntax error: Expected variable but got keyword <" ++ name ++ ">"
     else return (Var name)
 
-{-
-app_builder takes a list of expressions [e1, e2, e3, ...]
-and turns them into a single expression with applications:
-(App (App (App ... e3) e2) e1)
--}
-app_builder :: [Expression] -> Expression
-app_builder exps = 
-  case exps of
-      [x] -> x
-      (x : xs) -> (App (app_builder xs) x)
 
 -- Parsers for general expressions and top-levels
 parse_single_expression :: Parser Expression

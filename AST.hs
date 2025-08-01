@@ -14,12 +14,12 @@ matches to anything.
 data PrimitiveType = INT | BOOL
   deriving (Show, Eq)
 
+
 data Type = Func Type Type | List Type | PrimType PrimitiveType | T
-            | Any | Prod Type Type
+            | Any | Prod Type Type | TypeVar Int
   deriving (Show, Eq)
 
 data TypeAnnotation = TypeAnnotation String Type
-  deriving (Show)
 
 {- 
 Data type for values: that is, objects that have been 'interpreted'
@@ -46,13 +46,12 @@ data Expression =
   Lambda TypeAnnotation Expression |
   Pair Expression Expression |
   Num Integer | 
-  Boolean Bool
-  deriving (Show)
-
+  Boolean Bool |
+  IDHole Int Type |
+  Hole Type
 
 data TopLevel = 
   Let TypeAnnotation Expression | LetRec TypeAnnotation Expression | TP
-  deriving (Show)
 
 {-
 Auxiliary functions to print types and values. Note that functions are not
@@ -76,3 +75,44 @@ show_value (ListValue l) =
   "[" ++ (unwords $ map show_value l) ++ "]"
 show_value (PairValue (r, s)) =
   "<" ++ (show_value r) ++ ", " ++ (show_value s) ++ ">"
+
+
+tab :: String -> String
+tab s = unlines $ map (\l -> "  " ++ l) $ lines s
+
+instance Show TypeAnnotation where
+  show (TypeAnnotation var t) = var ++ " : " ++ (show_type t)
+
+instance Show Expression where
+  show (Boolean b) = show b
+  show (Num n) = show n
+  show (Pair e1 e2) = "< " ++ show e1 ++ ", " ++ show e2 ++ " >"
+  show (Lambda t e) =
+    "\\(" ++ (show t) ++ ") -> (\n"
+    ++ tab (show e) ++ ")"
+  show (Ifte cond e1 e2) =
+    "if (" ++ (show cond) ++ ")\n" ++
+    tab ("then (" ++ (show e1) ++ ")\n"
+      ++ "else (" ++ (show e2) ++ ")")
+  show (Var s) = s
+  show (App e1 e2) = "(" ++ (show e1) ++ " " ++ (show e2) ++ ")"
+  show (IDHole id t) = "(_" ++ (show id) ++ " : " ++ (show_type t) ++ ")"
+  show (Hole t) = "(_" ++ " : " ++ (show_type t) ++ ")"
+
+instance Show TopLevel where
+  show (Let t e) = "let (" ++ (show t) ++ ") =\n" ++ (tab $ show e)
+  show (LetRec t e) = "letrec (" ++ (show t) ++ ") =\n" ++ (tab $ show e)
+
+show_code :: [TopLevel] -> String
+show_code code = unlines $ map show code
+
+{-
+app_builder takes a list of expressions [e1, e2, e3, ...]
+and turns them into a single expression with applications:
+(App (App (App ... e3) e2) e1)
+-}
+app_builder :: [Expression] -> Expression
+app_builder exps = 
+  case exps of
+      [x] -> x
+      (x : xs) -> (App (app_builder xs) x)

@@ -251,4 +251,6 @@ update_environment :: ValueEnvironment -> TopLevel -> ValueEnvironment
 update_environment env tp =
   case tp of
     Let (TypeAnnotation x t) e -> (x, eval e env tp) : env
-    LetRec (TypeAnnotation x t) e -> (x, eval e ((x, Recurse) : env) tp) : env
+    LetRec (TypeAnnotation x t) e -> (x, r) : env
+      where
+        r = eval e ((x, r) : env) tp
