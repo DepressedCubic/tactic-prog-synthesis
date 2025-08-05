@@ -33,7 +33,10 @@ param_var :: String -> Tactic
 param_var name env t =
   case (lookup name env) of
     Nothing -> Nothing
-    Just t' -> if (t == t') then Just (Var name) else Nothing
+    Just t' ->
+      case (unify [] t t') of
+        Just sub -> Just (Var name)
+        Nothing -> Nothing
 
 
 -- [Boolean synthesis]
@@ -83,22 +86,26 @@ Given f : T1 -> ... -> Tn -> U and _ : U, synthesizes
 f (_ : T1) ... (_ : Tn)
 [Function application synthesis]
 -}
--- TO-DO: Unify with polymorphic types.
 f_apply :: String -> Tactic
 f_apply f env u =
-  case (lookup f env) of
-    Nothing -> Nothing
-    Just t ->
-      let
-        types = split_function_type t
-        rev_types = reverse types
-        u' = head rev_types
-        ts = tail rev_types
-        exps = (map (\t -> Hole t) ts) ++ [(Var f)]
-      in
-        if (u' == u) then
-          Just (app_builder exps)
-          else Nothing
+  let
+    subs sub (Hole t) = Hole (apply_sub sub t)
+    subs sub x = x
+  in
+    case (lookup f env) of
+      Nothing -> Nothing
+      Just t ->
+        let
+          types = split_function_type t
+          rev_types = reverse types
+          u' = head rev_types
+          ts = tail rev_types
+          exps = (map (\t -> Hole t) ts) ++ [(Var f)]
+        in
+          case (unify [] u u') of
+            Just sub -> 
+              Just (app_builder $ map (subs sub) (exps))
+            _ -> Nothing
 
 
 {-
@@ -271,3 +278,4 @@ add_ids (exp, next_id) =
       in
         (Pair e1' e2', next_id'')
     _ -> (exp, next_id)
+

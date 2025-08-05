@@ -63,7 +63,8 @@ read_action code env next_id = do
       do_tactic id_str env cases (code, next_id)
     [id_str, "apply", name] ->
       do_tactic id_str env (f_apply name) (code, next_id)
-
+    [id_str, "int", int_str] ->
+      do_tactic id_str env (prim_int (read int_str)) (code, next_id)
     _ -> do
       putStrLn "Unknown action. Try again."
       read_action code env next_id

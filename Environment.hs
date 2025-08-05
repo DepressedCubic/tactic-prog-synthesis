@@ -82,11 +82,11 @@ snd_val =
 initial_types :: TypeEnvironment
 initial_types =
   [
-    ("nil", List T),
-    ("cons", Func T (Func (List T) (List T))),
-    ("head", Func (List T) T),
-    ("tail", Func (List T) (List T)),
-    ("isnil", Func (List T) (PrimType BOOL)),
+    ("nil", List (TypeVar 0)),
+    ("cons", Func (TypeVar 0) (Func (List (TypeVar 0)) (List (TypeVar 0)))),
+    ("head", Func (List (TypeVar 0)) (TypeVar 0)),
+    ("tail", Func (List (TypeVar 0)) (List (TypeVar 0))),
+    ("isnil", Func (List (TypeVar 0)) (PrimType BOOL)),
     ("leq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
     ("eq", Func (PrimType INT) (Func (PrimType INT) (PrimType BOOL))),
     ("and", Func (PrimType BOOL) (Func (PrimType BOOL) (PrimType BOOL))),
@@ -97,8 +97,8 @@ initial_types =
     ("mul", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
     ("div", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
     ("zero", Func (PrimType INT) (PrimType BOOL)),
-    ("fst", Func (Prod T Any) T),
-    ("snd", Func (Prod Any T) T)
+    ("fst", Func (Prod (TypeVar 0) (TypeVar 1)) (TypeVar 0)),
+    ("snd", Func (Prod (TypeVar 0) (TypeVar 1)) (TypeVar 1))
   ]
 
 initial_environment :: ValueEnvironment

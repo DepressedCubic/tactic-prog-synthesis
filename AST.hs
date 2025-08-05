@@ -1,5 +1,8 @@
 module AST where
 
+import Data.Maybe
+import Data.List
+
 {-
 Data types for AST representation of types and type annotations
 Type 'T' represents a placeholder type, for polymorphic functions such
@@ -64,6 +67,7 @@ show_type (PrimType BOOL) = "Bool"
 show_type (List t) = "[" ++ (show_type t) ++ "]"
 show_type (Func r s) = "(" ++ (show_type r) ++ " -> " ++ (show_type s) ++ ")"
 show_type (Prod r s) = "<" ++ (show_type r) ++ ", " ++ (show_type s) ++ ">"
+show_type (TypeVar n) = "T(" ++ (show n) ++ ")"
 show_type Any = "*"
 
 show_value :: Value -> String
@@ -116,3 +120,87 @@ app_builder exps =
   case exps of
       [x] -> x
       (x : xs) -> (App (app_builder xs) x)
+
+-- Type unification
+
+type Substitution = [(Int, Type)]
+
+apply_sub :: Substitution -> Type -> Type
+apply_sub sub (TypeVar n) =
+  case (lookup n sub) of
+    Just t -> t
+    _ -> (TypeVar n)
+apply_sub sub (Func t1 t2) = Func (apply_sub sub t1) (apply_sub sub t2)
+apply_sub sub (List t) = List (apply_sub sub t)
+apply_sub sub (Prod t1 t2) = Prod (apply_sub sub t1) (apply_sub sub t2)
+apply_sub sub (PrimType t) = PrimType t
+
+compose :: Substitution -> Substitution -> Substitution
+compose s1 s2 =
+  let
+    is_trivial (n, t) =
+      case t of
+        TypeVar n -> True
+        _ -> False
+    s1' = map (\(n, t) -> (n, apply_sub s2 t)) s1
+    s2' = filter (\(n, _) -> not $ isJust $ lookup n s1) s2
+    s1'' = filter (\p -> not $ is_trivial p) s1'
+  in
+    union s1'' s2'
+
+
+
+unify :: Substitution -> Type -> Type -> Maybe Substitution
+unify sub t1 t2 =
+  let
+    t1' = if (is_var t1) then (apply_sub sub t1) else t1
+    t2' = if (is_var t2) then (apply_sub sub t2) else t2
+  in
+    if ((is_var t1') && (t1' == t2'))
+      then Just sub
+    else
+      case (t1', t2') of
+        (Func u v, Func u' v') -> do
+          sub' <- unify sub u u'
+          sub'' <- unify sub' v v'
+          return (sub'')
+        (Func _ _, Prod _ _) -> Nothing
+        (Func _ _, List _) -> Nothing
+        (Func _ _, PrimType _) -> Nothing
+        (Prod u v, Prod u' v') -> do
+          sub' <- unify sub u u'
+          sub'' <- unify sub' v v'
+          return (sub'')
+        (Prod _ _, Func _ _) -> Nothing
+        (Prod _ _, List _) -> Nothing
+        (Prod _ _, PrimType _) -> Nothing
+        (List t, List t') -> unify sub t t'
+        (List _, Func _ _) -> Nothing
+        (List _, Prod _ _) -> Nothing
+        (List _, PrimType _) -> Nothing
+        (PrimType u, PrimType v) -> 
+          if (u == v) 
+            then Just sub 
+            else Nothing
+        (PrimType _, Func _ _) -> Nothing
+        (PrimType _, Prod _ _) -> Nothing
+        (PrimType _, List _) -> Nothing
+        _ ->
+          if (not $ is_var t1')
+            then unify sub t2' t1'
+            else
+              case t1' of
+                (TypeVar n) ->
+                  if (occurs n t2')
+                    then Nothing
+                    else Just (compose sub [(n, t2')])
+                _ -> Nothing
+  where
+    is_var (TypeVar n) = True
+    is_var _ = False
+    occurs n (TypeVar m) = (n == m)
+    occurs n (Func t1 t2) = (occurs n t1) || (occurs n t2)
+    occurs n (Prod t1 t2) = (occurs n t1) || (occurs n t2)
+    occurs n (List t) = occurs n t
+    occurs n _ = False
+
