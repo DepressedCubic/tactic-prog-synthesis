@@ -53,6 +53,15 @@ data Expression =
   IDHole Int Type |
   Hole Type
 
+-- Quite inefficient conversion of expressions to list of IDs.
+list_ids :: Expression -> [Int]
+list_ids (App e1 e2) = (list_ids e1) ++ (list_ids e2)
+list_ids (Ifte e1 e2 e3) = (list_ids e1) ++ (list_ids e2) ++ (list_ids e3)
+list_ids (Pair e1 e2) = (list_ids e1) ++ (list_ids e2)
+list_ids (Lambda _ e) = list_ids e
+list_ids (IDHole n _) = [n]
+list_ids _ = []
+
 data TopLevel = 
   Let TypeAnnotation Expression | LetRec TypeAnnotation Expression | TP
 

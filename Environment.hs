@@ -98,7 +98,9 @@ initial_types =
     ("div", Func (PrimType INT) (Func (PrimType INT) (PrimType INT))),
     ("zero", Func (PrimType INT) (PrimType BOOL)),
     ("fst", Func (Prod (TypeVar 0) (TypeVar 1)) (TypeVar 0)),
-    ("snd", Func (Prod (TypeVar 0) (TypeVar 1)) (TypeVar 1))
+    ("snd", Func (Prod (TypeVar 0) (TypeVar 1)) (TypeVar 1)),
+    ("pair", Func (TypeVar 0) (Func (TypeVar 1) (Prod (TypeVar 0) (TypeVar 1)))),
+    ("map", Func ())
   ]
 
 initial_environment :: ValueEnvironment
