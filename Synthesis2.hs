@@ -154,6 +154,26 @@ cases (_, t) s =
   in
     (Just (Ifte (IDHole id (PrimType BOOL)) (IDHole (id + 1) t) (IDHole (id + 2) t), 17), s{next_id = id + 3, hole = id})
 
+-- Named tactics
+
+param_varN :: String -> Named Tactic
+param_varN name = Named ("var " ++ name) (param_var name)
+
+prim_boolN :: Bool -> Named Tactic
+prim_boolN b = Named ("bool " ++ (show b)) (prim_bool b)
+
+prim_intN :: Integer -> Named Tactic
+prim_intN n = Named ("int " ++ (show n)) (prim_int n)
+
+introN :: String -> Named Tactic
+introN x = Named ("intro " ++ x) (intro x)
+
+f_applyN :: String -> Named Tactic
+f_applyN f = Named ("apply " ++ f) (f_apply f)
+
+casesN :: Named Tactic
+casesN = Named "cases" cases
+
 
 -- Auxiliaries
 

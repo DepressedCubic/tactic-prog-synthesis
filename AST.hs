@@ -24,6 +24,9 @@ data Type = Func Type Type | List Type | PrimType PrimitiveType | T
 
 data TypeAnnotation = TypeAnnotation String Type
 
+-- Auxiliary data type to keep track of the names of tactics.
+data Named f = Named { name :: String, run :: f }
+
 {- 
 Data type for values: that is, objects that have been 'interpreted'
 and are ready for use.

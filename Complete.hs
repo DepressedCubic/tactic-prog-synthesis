@@ -11,12 +11,10 @@ variable_gen :: TypeEnvironment -> String
 variable_gen env =
   head $ filter (\v -> (lookup v env) == Nothing) $ map (\n -> "x" ++ (show n)) [1..]
 
--- Given a parametrized tactic and a list of parameters, makes a poly-tactic
-
 
 -- NEW
 -- ignores all dead-end tactics, and sorts by usefulness.
-complete :: HoleInfo -> [Tactic] -> [(Tactic, Expression)]
+complete :: HoleInfo -> [Named Tactic] -> [(Named Tactic, Expression)]
 complete info tactics =
   let
     valid = filter (\tc -> isJust $ result tc) tactics
@@ -25,24 +23,23 @@ complete info tactics =
   in
     map (\(tc, (exp, _)) -> (tc, exp)) sorted
   where
-    result tc = fst $ tc info initial_state
+    result tc = fst $ (run tc) info initial_state
 
-tactic_list :: TypeEnvironment -> [Tactic]
+tactic_list :: TypeEnvironment -> [Named Tactic]
 tactic_list env =
   let
-    vars = map (param_var . fst) env
-    bools = map prim_bool [True, False]
-    ints = map prim_int [0..10]
-    intros = map intro [variable_gen env]
-    applys = map (f_apply . fst) env
+    vars = map (param_varN . fst) env
+    bools = map prim_boolN [True, False]
+    ints = map prim_intN [0..10]
+    intros = map introN [variable_gen env]
+    applys = map (f_applyN . fst) env
   in
-    vars ++ bools ++ ints ++ intros ++ applys ++ [cases]
+    vars ++ bools ++ ints ++ intros ++ applys ++ [casesN]
 
   
-show_complete :: [(Tactic, Expression)] -> String
+show_complete :: [(Named Tactic, Expression)] -> String
 show_complete pairs =
   let
-    exps = map snd pairs
-    indexed = zip [1..] exps
+    indexed = zip [0..] pairs
   in
-    concatMap (\(n, exp) -> (show n) ++ ". " ++ (show exp) ++ "\n") indexed
+    concatMap (\(n, (namedT, exp)) -> (show n) ++ ". " ++ (show exp) ++ " [ " ++ (name namedT) ++ " ]\n") indexed

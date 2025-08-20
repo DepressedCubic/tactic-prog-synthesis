@@ -1,6 +1,7 @@
 import System.IO
 import Text.Parsec
 import Data.Maybe
+import Text.Read
 
 import Parser
 import AST
@@ -29,7 +30,7 @@ do_tactic tactic s =
         s'{code = code_fill e (hole s) (code s)}
 
 
-choices :: S -> [(Tactic, Expression)]
+choices :: S -> [(Named Tactic, Expression)]
 choices s =
   case (global_find_type_env (env s) (hole s) (code s)) of
     Just (local_env, t) -> complete (local_env, t) (tactic_list local_env)
@@ -81,7 +82,13 @@ read_action s = do
         [] -> do
           putStrLn "No tactics available."
           read_action s
-        (x : xs) -> display (do_tactic (fst x) s)
+        (x : xs) -> display (do_tactic (run $ fst x) s)
+    [int_str] ->
+      case (readMaybe int_str) of
+        Nothing -> do
+          putStrLn "Unknown action. Try again."
+          read_action s
+        Just n -> display (do_tactic (run $ fst ((choices s) !! n)) s)
     _ -> do
       putStrLn "Unknown action. Try again."
       read_action s
