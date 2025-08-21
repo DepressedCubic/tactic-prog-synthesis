@@ -5,22 +5,24 @@ import Text.Parsec.String (Parser)
 import System.Environment
 import System.IO
 import Data.Maybe
+import Data.List
 
 import AST
 import Parser
 import Environment
 
--- state: code, type env, next id, current hole.
+-- state: code, type env, next id, current hole, next type id.
 
 data S = State {
   code :: [TopLevel],
   env :: TypeEnvironment,
   next_id :: Int,
-  hole :: Int
+  hole :: Int,
+  next_type :: Int
 } deriving (Show)
 
 initial_state :: S
-initial_state = Synthesis2.State {code = [], env = initial_types, next_id = 0, hole = -1}
+initial_state = Synthesis2.State {code = [], env = initial_types, next_id = 0, hole = -1, next_type = 0}
 
 -- tactics
 
@@ -45,16 +47,24 @@ next_hole code id =
     tp_ids (Let _ e) = list_ids e
     tp_ids (LetRec _ e) = list_ids e
 
+-- IMPORTANT: Check carefully which of these add new type variables
+-- (so that next_type is updated accordingly).
 
 param_var :: String -> Tactic
 param_var name (env, t) s =
   case (lookup name env) of
     Nothing -> (Nothing, s)
     Just t' ->
-      case (unify [] t t') of
-        Just sub -> 
-          (Just (Var name, 20), s{hole = next_hole (code s) (hole s)})
-        Nothing -> (Nothing, s)
+      let
+        (next, t'') = shift_ids (next_type s, t')
+      in
+        case (unify [] t t'') of
+          Just sub -> 
+            (Just (Var name, 20), 
+            s{code = (global_apply_sub sub $ code s), 
+            hole = next_hole (code s) (hole s),
+            next_type = next})
+          Nothing -> (Nothing, s)
 
 -- [Boolean synthesis]
 prim_bool :: Bool -> Tactic
@@ -110,14 +120,38 @@ apply t (_, u) s =
 split_function_type :: Type -> [Type]
 split_function_type t =
   case t of
+    NoShift t' -> split_function_type t'
     Func t1 ts -> t1 : (split_function_type ts)
     _ -> [t]
+
+shift_ids :: (Int, Type) -> (Int, Type)
+shift_ids (next, t) =
+  let
+    next' = next + (length $ ids t)
+    t' = shift next t
+  in
+    case t of
+      NoShift _ -> (next, t)
+      _ -> (next', t')
+  where
+    ids (Func t1 t2) = union (ids t1) (ids t2)
+    ids (Prod t1 t2) = union (ids t1) (ids t2)
+    ids (List t) = ids t
+    ids (TypeVar n) = [n]
+    ids _ = []
+    shift k (Func t1 t2) = Func (shift k t1) (shift k t2)
+    shift k (Prod t1 t2) = Prod (shift k t1) (shift k t2)
+    shift k (List t) = List (shift k t)
+    shift k (TypeVar n) = TypeVar (k + n)
+    shift k t = t
+
 
 {-
 Given f : T1 -> ... -> Tn -> U and _ : U, synthesizes
 f (_ : T1) ... (_ : Tn)
 [Function application synthesis]
 -}
+-- Thus far, the only used tactic that updates the type ID counter.
 f_apply :: String -> Tactic
 f_apply f (env, u) s =
   let
@@ -128,7 +162,8 @@ f_apply f (env, u) s =
       Nothing -> (Nothing, s)
       Just t ->
         let
-          types = split_function_type t
+          (next, t') = shift_ids (next_type s, t)
+          types = split_function_type t'
           rev_types = reverse types
           u' = head rev_types
           id = next_id s
@@ -138,8 +173,13 @@ f_apply f (env, u) s =
           case (unify [] u u') of
             Just sub -> 
               (Just (app_builder $ map (subs sub) (exps), 15),
-               s{next_id = id + (length ts), hole = id + (length ts) - 1})
+               s{code = (global_apply_sub sub $ code s),
+               next_id = id + (length ts), 
+               hole = id + (length ts) - 1,
+                 next_type = next})
             _ -> (Nothing, s)
+
+-- BUT WAIT!! We do not need to shift the IDs of type variables that already occur.
 
 
 {-
@@ -236,7 +276,7 @@ find_type_env type_env id tp =
           then Just (type_env, t)
           else Nothing
         Lambda (TypeAnnotation var t) e1 -> 
-          fnd ((var, t) : type_env) id e1
+          fnd ((var, NoShift t) : type_env) id e1
         _ -> listToMaybe $ catMaybes $ map (fnd type_env id) $ subexp exp
 
 global_find_type_env :: TypeEnvironment -> Int -> [TopLevel] -> Maybe HoleInfo

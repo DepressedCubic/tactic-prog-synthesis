@@ -27,7 +27,7 @@ do_tactic tactic s =
     case m_exp of
       Nothing -> s
       Just (e, _) ->
-        s'{code = code_fill e (hole s) (code s)}
+        s'{code = code_fill e (hole s) (code s')}
 
 
 choices :: S -> [(Named Tactic, Expression)]
@@ -50,8 +50,10 @@ read_action s = do
           read_action s
         Right t ->
           let
-            new = (Let (TypeAnnotation name t) (IDHole (next_id s) t))
-            s' = Synthesis2.State {code = (new : (code s)), env = ((name, t) : (env s)), next_id = (next_id s) + 1, hole = (next_id s)}
+            t' = names_to_ids (zip (get_type_names t) [0..]) t
+            (next', t'') = shift_ids (next_type s, t')
+            new = (Let (TypeAnnotation name t'') (IDHole (next_id s) t''))
+            s' = s{code = (new : (code s)), env = ((name, t'') : (env s)), next_id = (next_id s) + 1, hole = (next_id s), next_type = next'}
           in
             display s'
     ("ltrc" : name : type_str) ->
@@ -61,8 +63,10 @@ read_action s = do
           read_action s
         Right t ->
           let
-            new = (LetRec (TypeAnnotation name t) (IDHole (next_id s) t))
-            s' = Synthesis2.State {code = (new : (code s)), env = ((name, t) : (env s)), next_id = (next_id s) + 1, hole = (next_id s)}
+            t' = names_to_ids (zip (get_type_names t) [0..]) t
+            (next', t'') = shift_ids (next_type s, t')
+            new = (LetRec (TypeAnnotation name t'') (IDHole (next_id s) t''))
+            s' = s{code = (new : (code s)), env = ((name, t'') : (env s)), next_id = (next_id s) + 1, hole = (next_id s), next_type = next'}
           in
             display s'
     ["var", name] ->

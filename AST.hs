@@ -18,13 +18,13 @@ data PrimitiveType = INT | BOOL
   deriving (Show, Eq)
 
 
-data Type = Func Type Type | List Type | PrimType PrimitiveType | T
-            | Any | Prod Type Type | TypeVar Int
+data Type = Func Type Type | List Type | PrimType PrimitiveType | TypeName String | Prod Type Type | TypeVar Int |
+  NoShift Type -- ad-hoc solution to the type-shifting problem
   deriving (Show, Eq)
 
 data TypeAnnotation = TypeAnnotation String Type
 
--- Auxiliary data type to keep track of the names of tactics.
+-- Auxiliary data type to keep track of the names of the tactics.
 data Named f = Named { name :: String, run :: f }
 
 {- 
@@ -73,14 +73,13 @@ Auxiliary functions to print types and values. Note that functions are not
 fully represented.
 -}
 show_type :: Type -> String
-show_type T = "T"
 show_type (PrimType INT) = "Int"
 show_type (PrimType BOOL) = "Bool"
 show_type (List t) = "[" ++ (show_type t) ++ "]"
 show_type (Func r s) = "(" ++ (show_type r) ++ " -> " ++ (show_type s) ++ ")"
 show_type (Prod r s) = "<" ++ (show_type r) ++ ", " ++ (show_type s) ++ ">"
 show_type (TypeVar n) = "T(" ++ (show n) ++ ")"
-show_type Any = "*"
+show_type (NoShift t) = show_type t
 
 show_value :: Value -> String
 show_value (Int n) = show n
@@ -145,26 +144,58 @@ apply_sub sub (TypeVar n) =
 apply_sub sub (Func t1 t2) = Func (apply_sub sub t1) (apply_sub sub t2)
 apply_sub sub (List t) = List (apply_sub sub t)
 apply_sub sub (Prod t1 t2) = Prod (apply_sub sub t1) (apply_sub sub t2)
-apply_sub sub (PrimType t) = PrimType t
+apply_sub sub (NoShift t) = NoShift (apply_sub sub t)
+apply_sub sub t = t
+
+exp_apply_sub :: Substitution -> Expression -> Expression
+exp_apply_sub sub exp =
+  case exp of
+    App e1 e2 -> App (exp_apply_sub sub e1) (exp_apply_sub sub e2)
+    Ifte e1 e2 e3 ->
+      Ifte (exp_apply_sub sub e1) (exp_apply_sub sub e2) (exp_apply_sub sub e3)
+    Pair e1 e2 -> Pair (exp_apply_sub sub e1) (exp_apply_sub sub e2)
+    Lambda (TypeAnnotation s t) e -> 
+      Lambda (TypeAnnotation s (apply_sub sub t)) (exp_apply_sub sub e)
+    IDHole n t -> IDHole n (apply_sub sub t)
+    _ -> exp
+
+tp_apply_sub :: Substitution -> TopLevel -> TopLevel
+tp_apply_sub sub tp =
+  case tp of
+    Let (TypeAnnotation s t) e -> 
+      Let (TypeAnnotation s (apply_sub sub t)) (exp_apply_sub sub e)
+    LetRec (TypeAnnotation s t) e -> 
+      LetRec (TypeAnnotation s (apply_sub sub t)) (exp_apply_sub sub e)
+
+global_apply_sub :: Substitution -> [TopLevel] -> [TopLevel]
+global_apply_sub sub = map (tp_apply_sub sub)
 
 compose :: Substitution -> Substitution -> Substitution
-compose s1 s2 =
+compose s t =
   let
-    is_trivial (n, t) =
-      case t of
-        TypeVar n -> True
+    is_trivial (n, t') =
+      case t' of
+        TypeVar m -> (n == m)
         _ -> False
-    s1' = map (\(n, t) -> (n, apply_sub s2 t)) s1
-    s2' = filter (\(n, _) -> not $ isJust $ lookup n s1) s2
-    s1'' = filter (\p -> not $ is_trivial p) s1'
+    s1 = map (\(n, t') -> (n, apply_sub t t')) s
+    t1 = filter (\(n, _) -> not $ isJust $ lookup n s) t
+    s2 = filter (\p -> not $ is_trivial p) s1
   in
-    union s1'' s2'
+    union s2 t1
 
 
 
 unify :: Substitution -> Type -> Type -> Maybe Substitution
-unify sub t1 t2 =
+unify sub u v =
   let
+    t1 =
+      case u of
+        NoShift u' -> u'
+        _ -> u
+    t2 =
+      case v of
+        NoShift v' -> v'
+        _ -> v
     t1' = if (is_var t1) then (apply_sub sub t1) else t1
     t2' = if (is_var t2) then (apply_sub sub t2) else t2
   in

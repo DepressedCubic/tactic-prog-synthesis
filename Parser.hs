@@ -3,6 +3,7 @@ module Parser where
 import System.Environment
 import Data.Maybe
 import Data.Functor
+import Data.List
 import Text.Parsec
 import Text.Parsec.String (Parser)
 import Control.Applicative (many)
@@ -84,9 +85,35 @@ parse_list_type = do
   chr ']'
   return (List t)
 
+-- Auxiliary functions for type parsing
+
+-- Given a type, returns list of all type names used.
+get_type_names :: Type -> [String]
+get_type_names (Func t1 t2) = union (get_type_names t1) (get_type_names t2)
+get_type_names (List t) = get_type_names t
+get_type_names (Prod t1 t2) = union (get_type_names t1) (get_type_names t2)
+get_type_names (TypeName s) = [s]
+get_type_names _ = []
+
+-- Takes in a map of type names to IDs, and replaces the type names with TypeVars.
+names_to_ids :: [(String, Int)] -> Type -> Type
+names_to_ids assoc t =
+  case t of
+    Func t1 t2 -> Func (names_to_ids assoc t1) (names_to_ids assoc t2)
+    Prod t1 t2 -> Prod (names_to_ids assoc t1) (names_to_ids assoc t2)
+    List t -> List (names_to_ids assoc t)
+    TypeName n ->
+      case (lookup n assoc) of
+        Just id -> TypeVar id
+        _ -> t
+    _ -> t
+
+
+
+
 parse_type :: Parser Type
 parse_type = do
-  t1 <- parse_pair_type <|> parse_prim_type <|> parse_list_type <|> 
+  t1 <- parse_pair_type <|> parse_prim_type <|> parse_list_type <|> parse_type_name <|>
         between (chr '(') (chr ')') parse_type
   is_func <- optionMaybe (str "->")
   case is_func of
@@ -95,6 +122,12 @@ parse_type = do
       spaces
       t2 <- parse_type
       return (Func t1 t2)
+
+
+parse_type_name :: Parser Type
+parse_type_name = do
+  name <- parse_name
+  return (TypeName name)
 
 
 parse_type_annotation :: Parser TypeAnnotation
